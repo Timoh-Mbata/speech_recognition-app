@@ -1,6 +1,2 @@
 streamlit==1.23.0
 SpeechRecognition==3.10.0
-pyaudio==0.2.11
-# You may also include any other libraries you are using, such as:
-# requests==2.28.1  (if you're using APIs that require it)
-# python-dotenv==0.21.0  (if you are managing API keys with environment variables)
