@@ -1,63 +1,64 @@
 import streamlit as st
-import cv2
-import numpy as np
-from PIL import Image
+import speech_recognition as sr
 
-# Function to detect faces and draw rectangles
-def detect_faces(image, min_neighbors, scale_factor, rectangle_color):
-    # Convert the image to grayscale
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    
-    # Load the pre-trained Haar Cascade for face detection
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+# Function to handle transcription
+def transcribe_speech(api_choice, lang_choice):
+    recognizer = sr.Recognizer()
+    mic = sr.Microphone()
 
-    # Detect faces in the image
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=scale_factor, minNeighbors=min_neighbors)
+    with mic as source:
+        st.info("Please speak now...")
+        recognizer.adjust_for_ambient_noise(source)
+        audio = recognizer.listen(source)
+        st.info("Recognizing...")
 
-    # Draw rectangles around faces
-    for (x, y, w, h) in faces:
-        cv2.rectangle(image, (x, y), (x + w, y + h), rectangle_color, 2)
+    try:
+        if api_choice == "Google":
+            text = recognizer.recognize_google(audio, language=lang_choice)
+        elif api_choice == "Sphinx":
+            text = recognizer.recognize_sphinx(audio)
+        elif api_choice == "Microsoft Bing":
+            text = recognizer.recognize_bing(audio, key="YOUR_BING_API_KEY", language=lang_choice)
+        elif api_choice == "IBM Watson":
+            text = recognizer.recognize_ibm(audio, username="YOUR_WATSON_USERNAME", password="YOUR_WATSON_PASSWORD", language=lang_choice)
+        else:
+            st.error("API not supported!")
+            return None
+        return text
+    except sr.UnknownValueError:
+        st.error("Sorry, I couldn't understand your speech.")
+    except sr.RequestError as e:
+        st.error(f"Could not request results from the speech service; {e}")
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
+        return None
 
-    return image
+# Function to save transcribed text
+def save_text(text):
+    if text:
+        file_name = st.text_input("Enter file name", "transcription.txt")
+        with open(file_name, "w") as file:
+            file.write(text)
+        st.success(f"Text saved to {file_name}")
 
-# Streamlit app layout
-st.title('Face Detection App')
+# Streamlit UI components
+st.title("Speech Recognition App")
+api_option = st.selectbox(
+    "Choose the Speech Recognition API",
+    ["Google", "Sphinx", "Microsoft Bing", "IBM Watson"]
+)
+language_choice = st.selectbox(
+    "Choose the language",
+    ["en-US", "en-GB", "es-ES", "fr-FR", "de-DE", "it-IT"]
+)
 
-# Instructions for the user
-st.write("""
-    **Instructions:**
-    1. Upload an image with faces.
-    2. Adjust the sliders to modify the face detection parameters (`minNeighbors` and `scaleFactor`).
-    3. Choose the color of the rectangles to highlight the detected faces.
-    4. Press "Detect Faces" to process the image and view the result.
-    5. Optionally, you can save the processed image by clicking the "Save Image" button.
-""")
+is_recording = st.checkbox("Start/Stop Recording")
 
-# File uploader to upload image
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
-
-# Parameters for face detection
-min_neighbors = st.slider('minNeighbors', min_value=1, max_value=10, value=3, step=1)
-scale_factor = st.slider('scaleFactor', min_value=1.01, max_value=2.0, value=1.1, step=0.01)
-rectangle_color = st.color_picker("Pick a color for the rectangles", "#FF0000")
-
-# Process and display the image with detected faces
-if uploaded_file is not None:
-    # Open the image using PIL and convert to numpy array
-    image = Image.open(uploaded_file)
-    image = np.array(image)
-
-    # Detect faces and draw rectangles
-    processed_image = detect_faces(image, min_neighbors, scale_factor, rectangle_color)
-
-    # Convert the processed image back to PIL format for displaying
-    processed_image_pil = Image.fromarray(processed_image)
-    st.image(processed_image_pil, caption='Processed Image', use_column_width=True)
-
-    # Button to save the image
-    if st.button('Save Image'):
-        # Save the image using OpenCV
-        save_path = 'detected_faces.png'
-        cv2.imwrite(save_path, processed_image)
-        st.success(f"Image saved as {save_path}")
-        st.markdown(f'<a href="data:file/{save_path}" download>Click here to download the image</a>', unsafe_allow_html=True)
+if is_recording:
+    st.text("Recording... Please speak into the microphone.")
+    text = transcribe_speech(api_option, language_choice)
+    if text:
+        st.write(f"Transcribed text: {text}")
+        save_text(text)
+else:
+    st.text("Click to start recording.")
